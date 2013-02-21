@@ -21,6 +21,8 @@ package org.dcache.xdr;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.glassfish.grizzly.filterchain.BaseFilter;
@@ -35,6 +37,9 @@ public class RpcDispatcher extends BaseFilter {
      *
      */
     private final Map<OncRpcProgram, RpcDispatchable> _programs;
+
+    private final ExecutorService _asyncExecutorService =
+            Executors.newCachedThreadPool();
 
     /**
      * Create new RPC dispatcher for given program.
@@ -56,28 +61,36 @@ public class RpcDispatcher extends BaseFilter {
     }
 
     @Override
-    public NextAction handleRead(FilterChainContext ctx) throws IOException {
+    public NextAction handleRead(final FilterChainContext ctx) throws IOException {
 
-        RpcCall call = ctx.getMessage();
-        int prog = call.getProgram();
-        int vers = call.getProgramVersion();
-        int proc = call.getProcedure();
+        final RpcCall call = ctx.getMessage();
+        final int prog = call.getProgram();
+        final int vers = call.getProgramVersion();
+        final int proc = call.getProcedure();
 
         _log.debug("processing request {}", call);
 
-        RpcDispatchable program = _programs.get(new OncRpcProgram(prog, vers));
-        if (program == null) {
-            call.failProgramUnavailable();
-        } else {
-            try {
-                program.dispatchOncRpcCall(call);
-            } catch (RpcException e) {
-                call.reject(e.getStatus(), e.getRpcReply());
-                _log.error("Failed to process RPC request:", e);
-            } catch (OncRpcException e) {
-                _log.error("Failed to process RPC request:", e);
+        _asyncExecutorService.execute( new Runnable() {
+
+            @Override
+            public void run() {
+                RpcDispatchable program = _programs.get(new OncRpcProgram(prog, vers));
+                if (program == null) {
+                    call.failProgramUnavailable();
+                } else {
+                    try {
+                        program.dispatchOncRpcCall(call);
+                    } catch (RpcException e) {
+                        call.reject(e.getStatus(), e.getRpcReply());
+                        _log.error("Failed to process RPC request:", e);
+                    } catch (IOException e) {
+                        _log.error("Failed to process RPC request:", e);
+                    } catch (OncRpcException e) {
+                        _log.error("Failed to process RPC request:", e);
+                    }
+                }
             }
-        }
+        });
         return ctx.getInvokeAction();
     }
 }

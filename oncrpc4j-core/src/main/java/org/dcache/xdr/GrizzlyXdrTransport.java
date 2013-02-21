@@ -30,16 +30,18 @@ import org.glassfish.grizzly.filterchain.FilterChainContext;
 
 public class GrizzlyXdrTransport implements XdrTransport {
 
-    private final FilterChainContext _context;
     private final Connection<InetSocketAddress> _connection;
     private final ReplyQueue<Integer, RpcReply> _replyQueue;
+    private final InetSocketAddress _localAddress;
+    private final InetSocketAddress _remoteAddress;
 
     private final static Logger _log = LoggerFactory.getLogger(GrizzlyXdrTransport.class);
 
     public GrizzlyXdrTransport(FilterChainContext context, ReplyQueue<Integer, RpcReply> replyQueue) {
-        _context = context;
         _connection = context.getConnection();
         _replyQueue = replyQueue;
+        _localAddress = (InetSocketAddress)context.getConnection().getLocalAddress();
+        _remoteAddress = (InetSocketAddress)context.getAddress();
     }
 
     public GrizzlyXdrTransport(FilterChainContext context) {
@@ -52,17 +54,17 @@ public class GrizzlyXdrTransport implements XdrTransport {
         buffer.allowBufferDispose(true);
 
         // pass destination address to handle UDP connections as well
-        _context.write(_context.getAddress(), buffer, null);
+        _connection.write(_remoteAddress, buffer, null);
     }
 
     @Override
     public InetSocketAddress getLocalSocketAddress() {
-        return (InetSocketAddress)_context.getConnection().getLocalAddress();
+        return _localAddress;
     }
 
     @Override
     public InetSocketAddress getRemoteSocketAddress() {
-        return (InetSocketAddress)_context.getAddress();
+        return _remoteAddress;
     }
 
     @Override
