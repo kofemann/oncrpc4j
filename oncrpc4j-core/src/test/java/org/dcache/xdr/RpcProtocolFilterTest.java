@@ -20,11 +20,13 @@
 package org.dcache.xdr;
 
 import java.io.IOException;
+import org.glassfish.grizzly.Connection;
 import org.glassfish.grizzly.filterchain.Filter;
 import org.glassfish.grizzly.filterchain.FilterChainContext;
 import org.junit.Before;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.*;
 
 /**
  *
@@ -39,7 +41,8 @@ public class RpcProtocolFilterTest {
     @Before
     public void setUp() {
         filter = new RpcProtocolFilter();
-        mockedContext = new FilterChainContext();
+        Connection connection = mock(Connection.class);
+        mockedContext = FilterChainContext.create(connection);
     }
 
     @Test
