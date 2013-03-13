@@ -88,4 +88,20 @@ public class BytesTest {
         assertEquals("01e7", Bytes.toHexString(bytes));
     }
 
+    @Test
+    public void testFromHexString() {
+        byte[] bytes = new byte[]{(byte) 0x1, (byte) 0xe7};
+        assertArrayEquals(bytes, Bytes.fromHexString("01e7"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFromShortHexString() {
+        Bytes.fromHexString("123");
+    }
+
+    @Test(expected = NumberFormatException.class)
+    public void testFromBadHexString() {
+        Bytes.fromHexString("klmn");
+    }
+
 }
