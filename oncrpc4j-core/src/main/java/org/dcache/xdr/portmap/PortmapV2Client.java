@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.dcache.utils.net.InetSocketAddresses;
 import org.dcache.xdr.OncRpcException;
-import org.dcache.xdr.RpcCall;
+import org.dcache.xdr.RpcCallClient;
 import org.dcache.xdr.XdrBoolean;
 import org.dcache.xdr.XdrInt;
 import org.dcache.xdr.XdrVoid;
@@ -34,9 +34,9 @@ import org.dcache.xdr.netid;
 public class PortmapV2Client implements OncPortmapClient {
 
     private final static Logger _log = LoggerFactory.getLogger(PortmapV2Client.class);
-    private final RpcCall _call;
+    private final RpcCallClient _call;
 
-    public PortmapV2Client(RpcCall call) {
+    public PortmapV2Client(RpcCallClient call) {
         _call = call;
     }
 
@@ -44,7 +44,8 @@ public class PortmapV2Client implements OncPortmapClient {
         _log.debug("portmap dump");
 
         pmaplist list_reply = new pmaplist();
-        _call.call(OncRpcPortmap.PMAPPROC_DUMP, XdrVoid.XDR_VOID, list_reply);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V2,
+                OncRpcPortmap.PMAPPROC_DUMP, XdrVoid.XDR_VOID, list_reply);
 
         System.out.println(list_reply);
     }
@@ -53,7 +54,8 @@ public class PortmapV2Client implements OncPortmapClient {
         _log.debug("portmap ping");
         boolean pong = false;
         try {
-            _call.call(OncRpcPortmap.PMAPPROC_NULL, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, 2000);
+            _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V2,
+                    OncRpcPortmap.PMAPPROC_NULL, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, 2000);
             pong = true;
         }catch(OncRpcException e) {
         }catch(IOException e) {
@@ -70,7 +72,8 @@ public class PortmapV2Client implements OncPortmapClient {
         mapping m1 = new mapping(program, version, netid.idOf(netids), address.getPort());
 
         XdrBoolean isSet = new XdrBoolean();
-        _call.call(OncRpcPortmap.PMAPPROC_SET, m1, isSet);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V2,
+                OncRpcPortmap.PMAPPROC_SET, m1, isSet);
 
         return isSet.booleanValue();
     }
@@ -83,7 +86,8 @@ public class PortmapV2Client implements OncPortmapClient {
         mapping m = new mapping(program, version, 0, -1);
 
         XdrBoolean isSet = new XdrBoolean();
-        _call.call(OncRpcPortmap.PMAPPROC_UNSET, m, isSet);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V2,
+                OncRpcPortmap.PMAPPROC_UNSET, m, isSet);
 
         return isSet.booleanValue();
     }
@@ -94,7 +98,8 @@ public class PortmapV2Client implements OncPortmapClient {
         mapping m = new mapping(program, version, netid.idOf(nid), 0);
         XdrInt port = new XdrInt();
 
-        _call.call(OncRpcPortmap.PMAPPROC_GETPORT, m, port);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V2,
+                OncRpcPortmap.PMAPPROC_GETPORT, m, port);
         return InetSocketAddresses.uaddrOf(_call.getTransport()
                 .getRemoteSocketAddress()
                 .getAddress()

@@ -37,12 +37,12 @@ public class SimpleRpcClient {
         XdrTransport transport = rpcClient.connect();
         RpcAuth auth = new RpcAuthTypeNone();
 
-        RpcCall call = new RpcCall(100017, 1, auth, transport);
+        RpcCallClient call = new RpcCallClient(auth, transport);
 
         /*
          * call PROC_NULL (ping)
          */
-        call.call(0, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID);
+        call.call(100017, 1, 0, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID);
         rpcClient.close();
     }
 }

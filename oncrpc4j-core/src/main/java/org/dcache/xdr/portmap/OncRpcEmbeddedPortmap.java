@@ -30,6 +30,7 @@ import org.dcache.xdr.OncRpcSvcBuilder;
 import org.dcache.xdr.RpcAuth;
 import org.dcache.xdr.RpcAuthTypeNone;
 import org.dcache.xdr.RpcCall;
+import org.dcache.xdr.RpcCallClient;
 import org.dcache.xdr.XdrTransport;
 import org.dcache.xdr.XdrVoid;
 
@@ -52,12 +53,12 @@ public class OncRpcEmbeddedPortmap {
             rpcClient = new OncRpcClient(InetAddress.getByName(null),
                     IpProtocolType.UDP, OncRpcPortmap.PORTMAP_PORT);
             XdrTransport transport = rpcClient.connect();
+            RpcCallClient call = new RpcCallClient(_auth, transport);
             /* check for version 2, 3 and 4 */
             for (int i = 2; i < 5; i++) {
-                RpcCall call = new RpcCall(OncRpcPortmap.PORTMAP_PROGRAMM,
-                        i, _auth, transport);
                 try {
-                    call.call(0, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, timeout);
+                    call.call(OncRpcPortmap.PORTMAP_PROGRAMM, i,
+                            OncRpcPortmap.PMAPPROC_NULL, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, timeout);
                 } catch (OncRpcException ex) {}
                 localPortmapperRunning = true;
             }

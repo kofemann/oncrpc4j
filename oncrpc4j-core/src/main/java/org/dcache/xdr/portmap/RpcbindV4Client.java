@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.dcache.xdr.OncRpcException;
 import org.dcache.xdr.RpcAuth;
 import org.dcache.xdr.RpcAuthTypeNone;
-import org.dcache.xdr.RpcCall;
+import org.dcache.xdr.RpcCallClient;
 import org.dcache.xdr.XdrBoolean;
 import org.dcache.xdr.XdrString;
 import org.dcache.xdr.XdrVoid;
@@ -35,9 +35,9 @@ public class RpcbindV4Client implements OncPortmapClient {
     private final static Logger _log = LoggerFactory.getLogger(RpcbindV4Client.class);
 
     private final RpcAuth _auth = new RpcAuthTypeNone();
-    private final RpcCall _call;
+    private final RpcCallClient _call;
 
-    public RpcbindV4Client(RpcCall call) {
+    public RpcbindV4Client(RpcCallClient call) {
         _call = call;
     }
 
@@ -47,7 +47,8 @@ public class RpcbindV4Client implements OncPortmapClient {
         boolean pong = false;
 
         try {
-            _call.call(OncRpcPortmap.PMAPPROC_NULL, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, 2000);
+            _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V4,
+                    OncRpcPortmap.PMAPPROC_NULL, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID, 2000);
             pong = true;
         }catch(OncRpcException e) {
         }catch(IOException e) {
@@ -65,7 +66,8 @@ public class RpcbindV4Client implements OncPortmapClient {
         rpcb m1 = new rpcb(program, version, netid, addr, owner);
 
         XdrBoolean isSet = new XdrBoolean();
-        _call.call(OncRpcPortmap.RPCBPROC_SET, m1, isSet);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V4,
+                OncRpcPortmap.RPCBPROC_SET, m1, isSet);
         return isSet.booleanValue();
 
     }
@@ -80,7 +82,8 @@ public class RpcbindV4Client implements OncPortmapClient {
         rpcb m = new rpcb(program, version, "", "", owner);
 
         XdrBoolean isSet = new XdrBoolean();
-        _call.call(OncRpcPortmap.RPCBPROC_UNSET, m, isSet);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V4,
+                OncRpcPortmap.RPCBPROC_UNSET, m, isSet);
         return isSet.booleanValue();
 
     }
@@ -89,7 +92,8 @@ public class RpcbindV4Client implements OncPortmapClient {
     public String getPort(int program, int version, String netid) throws OncRpcException, IOException {
         rpcb arg = new rpcb(program, version, netid, "", "");
         XdrString xdrString = new XdrString();
-        _call.call(OncRpcPortmap.RPCBPROC_GETADDR, arg, xdrString);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V4,
+                OncRpcPortmap.RPCBPROC_GETADDR, arg, xdrString);
         return xdrString.stringValue();
     }
 
@@ -98,7 +102,8 @@ public class RpcbindV4Client implements OncPortmapClient {
         _log.debug("portmap dump");
 
         rpcb_list rpcb_list_reply = new rpcb_list();
-        _call.call(OncRpcPortmap.RPCBPROC_DUMP, XdrVoid.XDR_VOID, rpcb_list_reply);
+        _call.call(OncRpcPortmap.PORTMAP_PROGRAMM, OncRpcPortmap.PORTMAP_V4,
+                OncRpcPortmap.RPCBPROC_DUMP, XdrVoid.XDR_VOID, rpcb_list_reply);
 
         System.out.println(rpcb_list_reply);
     }

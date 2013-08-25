@@ -28,11 +28,6 @@ public class RpcCall {
 
     private final static Logger _log = LoggerFactory.getLogger(RpcCall.class);
 
-    /**
-     * XID number generator
-     */
-    private final static AtomicInteger NEXT_XID = new AtomicInteger(0);
-
     private int _xid;
 
     /**
@@ -273,75 +268,5 @@ public class RpcCall {
      */
     public void failProcedureUnavailable() {
         acceptedReply(RpcAccepsStatus.PROC_UNAVAIL, XdrVoid.XDR_VOID);
-    }
-
-    /**
-     * Send call to remove RPC server.
-     *
-     * @param procedure the number of the procedure.
-     * @param args the argument of the procedure.
-     * @param result the result of the procedure
-     * @throws OncRpcException
-     * @throws IOException
-     */
-    public void call(int procedure, XdrAble args, XdrAble result)
-            throws OncRpcException, IOException {
-
-        this.call(procedure, args, result, Integer.MAX_VALUE);
-    }
-
-    /**
-     * Send call to remove RPC server.
-     *
-     * @param procedure the number of the procedure.
-     * @param args the argument of the procedure.
-     * @param result the result of the procedure
-     * @param timeout
-     * @throws OncRpcException
-     * @throws IOException
-     */
-    public void call(int procedure, XdrAble args, XdrAble result, int timeout)
-            throws OncRpcException, IOException {
-
-        int xid = NEXT_XID.incrementAndGet();
-
-        Xdr xdr = new Xdr(Xdr.MAX_XDR_SIZE);
-        xdr.beginEncoding();
-        RpcMessage rpcMessage = new RpcMessage(xid, RpcMessageType.CALL);
-        rpcMessage.xdrEncode(xdr);
-        xdr.xdrEncodeInt(RPCVERS);
-        xdr.xdrEncodeInt(_prog);
-        xdr.xdrEncodeInt(_version);
-        xdr.xdrEncodeInt(procedure);
-        _cred.xdrEncode(xdr);
-        args.xdrEncode(xdr);
-        xdr.endEncoding();
-
-        _transport.getReplyQueue().registerKey(xid);
-        _transport.send(xdr);
-
-        RpcReply reply;
-        try {
-            reply = _transport.getReplyQueue().get(xid, timeout);
-            if( reply == null ) {
-                _log.info("Did not get reply in time");
-                throw new IOException("Did not get reply in time");
-            }
-        } catch (InterruptedException e) {
-            _log.error("call processing interrupted");
-            throw new IOException(e.getMessage());
-        }
-
-        if(reply.isAccepted() && reply.getAcceptStatus() == RpcAccepsStatus.SUCCESS ) {
-            reply.getReplyResult(result);
-        } else {
-            _log.info("reply not succeeded {}", reply);
-            // FIXME: error handling here
-
-            if( reply.isAccepted() ) {
-                throw new OncRpcAcceptedException(reply.getAcceptStatus());
-            }
-            throw new OncRpcRejectedException(reply.getRejectStatus());
-        }
     }
 }
