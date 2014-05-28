@@ -147,6 +147,34 @@ public class Svcd implements RpcDispatchable {
     </bean>
 </beans>
 ```
+or groovy
+```groovy
+import org.dcache.xdr.OncRpcSvc
+import org.dcache.xdr.OncRpcSvcFactoryBean
+import org.dcache.xdr.OncRpcProgram
+import org.dcache.xdr.MySvc
+import org.dcache.xdr.RpcDispatchable
+
+beans {
+
+    mySvc(MySvc)
+    myRpcProgram(OncRpcProgram, 1110001, 1)
+
+    Map<OncRpcProgram, RpcDispatchable> progs = [(myRpcProgram): mySvc]
+    rpcsvcBuilder(OncRpcSvcFactoryBean) {
+        port = 1717
+        useTCP = true
+        autoPublish = false
+    }
+
+    oncrpcsvc(OncRpcSvc, rpcsvcBuilder) { bean ->
+        bean.initMethod = 'start'
+        bean.destroyMethod = 'stop'
+
+        programs = progs
+    }
+}
+```
 
 Notice, that included *SpringRunner* will try to instantiate and run bean with id __oncrpcsvc__.
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2014 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -23,8 +23,11 @@ import java.io.IOException;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.FileSystemXmlApplicationContext;
+import org.springframework.context.support.GenericGroovyApplicationContext;
 
 public class SpringRunner {
+
+    private final static String SVC_BEAN = "oncrpcsvc";
 
     private SpringRunner() {
         // this class it used only to bootstrap the Spring IoC
@@ -36,9 +39,15 @@ public class SpringRunner {
             System.exit(1);
         }
 
+        String configFile = args[0];
         try {
-            ApplicationContext context = new FileSystemXmlApplicationContext(args[0]);
-            OncRpcSvc service = (OncRpcSvc) context.getBean("oncrpcsvc");
+            ApplicationContext context;
+            if (configFile.endsWith(".groovy")) {
+                context = new GenericGroovyApplicationContext("file:" + configFile);
+            } else {
+                context = new FileSystemXmlApplicationContext(configFile);
+            }
+            OncRpcSvc service = (OncRpcSvc) context.getBean(SVC_BEAN);
             service.start();
 
             System.in.read();
