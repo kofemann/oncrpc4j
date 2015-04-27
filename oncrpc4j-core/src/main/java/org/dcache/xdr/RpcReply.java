@@ -26,6 +26,8 @@ import org.slf4j.LoggerFactory;
 public class RpcReply {
 
     private final static Logger _log = LoggerFactory.getLogger(RpcReply.class);
+
+    private final static CompletionHandler NOOP = new NoopCompetionHandler();
     /**
      * XID of corresponding request
      */
@@ -120,7 +122,7 @@ public class RpcReply {
         reply.xdrEncode(_xdr);
         _xdr.endEncoding();
 
-        _transport.send(_xdr);
+        _transport.send(_xdr, NOOP);
     }
 
     @Override

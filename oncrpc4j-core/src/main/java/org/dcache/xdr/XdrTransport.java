@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -32,10 +32,11 @@ public interface XdrTransport {
     /**
      * Send data to remote end point.
      *
-     * @param data
+     * @param xdr XDR encoded rpc message to send.
+     * @param handler The handler request completion.
      * @throws IOException
      */
-    public void send(Xdr xdr) throws IOException;
+    public void send(Xdr xdr, CompletionHandler handler) throws IOException;
 
     public ReplyQueue<Integer, RpcReply> getReplyQueue();
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -25,6 +25,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.glassfish.grizzly.Buffer;
 import org.glassfish.grizzly.Connection;
+import org.glassfish.grizzly.EmptyCompletionHandler;
+import org.glassfish.grizzly.WriteResult;
+import org.glassfish.grizzly.asyncqueue.WritableMessage;
 
 public class ClientTransport implements XdrTransport {
 
@@ -39,9 +42,19 @@ public class ClientTransport implements XdrTransport {
     }
 
     @Override
-    public void send(Xdr data) throws IOException {
+    public void send(Xdr data, final CompletionHandler handler) throws IOException {
         Buffer buffer = data.asBuffer();
-        _connection.write(buffer);
+        _connection.write(buffer, new EmptyCompletionHandler<WriteResult<WritableMessage, InetSocketAddress>>() {
+            @Override
+            public void failed(Throwable throwable) {
+                handler.onFailure(throwable);
+            }
+
+            @Override
+            public void completed(WriteResult<WritableMessage, InetSocketAddress> result) {
+                handler.onSuccess();
+            }
+        });
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2014 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -32,6 +32,8 @@ public class RpcCall {
      * XID number generator
      */
     private final static AtomicInteger NEXT_XID = new AtomicInteger(0);
+
+    private final static CompletionHandler NOOP = new NoopCompetionHandler();
 
     private int _xid;
 
@@ -199,7 +201,7 @@ public class RpcCall {
             reason.xdrEncode(_xdr);
             xdr.endEncoding();
 
-            _transport.send((Xdr)xdr);
+            _transport.send((Xdr)xdr, NOOP);
 
         } catch (OncRpcException e) {
             _log.warn("Xdr exception: ", e);
@@ -229,7 +231,7 @@ public class RpcCall {
             reply.xdrEncode(xdr);
             xdr.endEncoding();
 
-            _transport.send((Xdr)xdr);
+            _transport.send((Xdr)xdr, NOOP);
 
         } catch (OncRpcException e) {
             _log.warn("Xdr exception: ", e);
@@ -282,6 +284,23 @@ public class RpcCall {
         acceptedReply(RpcAccepsStatus.GARBAGE_ARGS, XdrVoid.XDR_VOID);
     }
 
+    private Xdr generateCallXdr(int xid, int procedure, XdrAble args) throws IOException {
+
+        Xdr xdr = new Xdr(Xdr.MAX_XDR_SIZE);
+        xdr.beginEncoding();
+        RpcMessage rpcMessage = new RpcMessage(xid, RpcMessageType.CALL);
+        rpcMessage.xdrEncode(xdr);
+        xdr.xdrEncodeInt(RPCVERS);
+        xdr.xdrEncodeInt(_prog);
+        xdr.xdrEncodeInt(_version);
+        xdr.xdrEncodeInt(procedure);
+        _cred.xdrEncode(xdr);
+        args.xdrEncode(xdr);
+        xdr.endEncoding();
+
+        return xdr;
+    }
+
     /**
      * Send call to remove RPC server.
      *
@@ -298,6 +317,20 @@ public class RpcCall {
     }
 
     /**
+     * Send unidirectional call to remote RPC server.
+     *
+     * @param procedure the number of the procedure.
+     * @param args the argument of the procedure.
+     * @param handler The handler request completion.
+     */
+    public void callAsync(int procedure, XdrAble args, CompletionHandler handler)
+            throws OncRpcException, IOException {
+
+        int xid = NEXT_XID.incrementAndGet();
+        _transport.send(generateCallXdr(xid, procedure, args) , handler);
+    }
+
+    /**
      * Send call to remove RPC server.
      *
      * @param procedure the number of the procedure.
@@ -311,21 +344,8 @@ public class RpcCall {
             throws OncRpcException, IOException {
 
         int xid = NEXT_XID.incrementAndGet();
-
-        Xdr xdr = new Xdr(Xdr.MAX_XDR_SIZE);
-        xdr.beginEncoding();
-        RpcMessage rpcMessage = new RpcMessage(xid, RpcMessageType.CALL);
-        rpcMessage.xdrEncode(xdr);
-        xdr.xdrEncodeInt(RPCVERS);
-        xdr.xdrEncodeInt(_prog);
-        xdr.xdrEncodeInt(_version);
-        xdr.xdrEncodeInt(procedure);
-        _cred.xdrEncode(xdr);
-        args.xdrEncode(xdr);
-        xdr.endEncoding();
-
         _transport.getReplyQueue().registerKey(xid);
-        _transport.send(xdr);
+        _transport.send(generateCallXdr(xid, procedure, args) , NOOP);
 
         RpcReply reply;
         try {

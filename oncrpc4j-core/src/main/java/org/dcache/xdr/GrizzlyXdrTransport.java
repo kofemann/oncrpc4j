@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2014 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -52,7 +52,7 @@ public class GrizzlyXdrTransport implements XdrTransport {
     }
 
     @Override
-    public void send(final Xdr xdr) throws IOException {
+    public void send(final Xdr xdr, final CompletionHandler handler) throws IOException {
         final Buffer buffer = xdr.asBuffer();
         buffer.allowBufferDispose(true);
 
@@ -60,8 +60,14 @@ public class GrizzlyXdrTransport implements XdrTransport {
         _connection.write(_remoteAddress, buffer, new EmptyCompletionHandler<WriteResult<WritableMessage, InetSocketAddress>>() {
             @Override
             public void failed(Throwable throwable) {
+                handler.onFailure(throwable);
                 _log.error("Failed to send RPC message: xid=0x{} remote={} : {}",
                         Integer.toHexString(buffer.getInt(0)), _connection.getPeerAddress(), throwable.getMessage());
+            }
+
+            @Override
+            public void completed(WriteResult<WritableMessage, InetSocketAddress> result) {
+                handler.onSuccess();
             }
         });
     }

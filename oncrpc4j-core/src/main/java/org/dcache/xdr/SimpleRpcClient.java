@@ -33,7 +33,7 @@ public class SimpleRpcClient {
         InetAddress address = InetAddress.getByName(args[0]);
         int port = Integer.parseInt(args[1]);
 
-        OncRpcClient rpcClient = new OncRpcClient(address, port, port);
+        OncRpcClient rpcClient = new OncRpcClient(address, IpProtocolType.TCP, port);
         XdrTransport transport = rpcClient.connect();
         RpcAuth auth = new RpcAuthTypeNone();
 
@@ -42,7 +42,20 @@ public class SimpleRpcClient {
         /*
          * call PROC_NULL (ping)
          */
-        call.call(0, XdrVoid.XDR_VOID, XdrVoid.XDR_VOID);
+        Thread.sleep(10000);
+        call.callAsync(0, XdrVoid.XDR_VOID, new NoopCompetionHandler() {
+
+            @Override
+            public void onFailure(Throwable t) {
+                System.out.println("Failed to send message: " + t);
+            }
+
+            @Override
+            public void onSuccess() {
+                System.out.println("Message delivered");
+            }
+
+        });
         rpcClient.close();
     }
 }
