@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2014 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,10 +19,12 @@
  */
 package org.dcache.xdr.gss;
 
+import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.security.Principal;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import javax.security.auth.Subject;
 import org.dcache.xdr.OncRpcException;
 import org.dcache.xdr.RpcAuth;
 import org.dcache.xdr.RpcAuthType;
@@ -45,8 +47,7 @@ public class RpcAuthGss implements RpcAuth, XdrAble {
     private int _service;
     private byte[] _handle;
     private Buffer _header;
-
-    private Subject _subject = new Subject();
+    private Principal _principal;
 
     public byte[] getHandle() {
         return _handle;
@@ -81,8 +82,8 @@ public class RpcAuthGss implements RpcAuth, XdrAble {
     }
 
     @Override
-    public Subject getSubject() {
-        return _subject;
+    public Set<Principal> getPrincipals() {
+        return Sets.newHashSet(_principal);
     }
 
     @Override
@@ -138,5 +139,9 @@ public class RpcAuthGss implements RpcAuth, XdrAble {
 
         _verifier.xdrEncode(xdr);
         throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    public void setPrincipal(Principal principal) {
+        _principal = principal;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2016 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -100,6 +100,12 @@ public class OncRpcSvc {
             new ConcurrentHashMap<>();
 
     /**
+     * LoginService to get mapping between request provided credentials and
+     * {@link Subject} to use during request processing.
+     */
+    private final RpcLoginService _loginService;
+
+    /**
      * Create new RPC service with defined configuration.
      * @param builder to build this service
      */
@@ -155,6 +161,7 @@ public class OncRpcSvc {
         _gssSessionManager = builder.getGssSessionManager();
         _programs.putAll(builder.getRpcServices());
         _withSubjectPropagation = builder.getSubjectPropagation();
+        _loginService = builder.getLoginService();
     }
 
     /**
@@ -292,7 +299,7 @@ public class OncRpcSvc {
             if (_gssSessionManager != null) {
                 filterChain.add(new GssProtocolFilter(_gssSessionManager));
             }
-            filterChain.add(new RpcDispatcher(_requestExecutor, _programs, _withSubjectPropagation));
+            filterChain.add(new RpcDispatcher(_requestExecutor, _programs, _withSubjectPropagation, _loginService));
 
             final FilterChain filters = filterChain.build();
 

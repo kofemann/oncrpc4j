@@ -49,7 +49,7 @@ public class CalculatorServerImpl extends CalculatorServer {
         Object[] args = new Object[2];
         args[0] = arg1;
         args[1] = arg2;
-        Subject subject = call.getCredential().getSubject();
+        Subject subject = call.getSubject();
         Set<String> principalNames = new HashSet<>();
         for (Principal p : subject.getPrincipals()) {
             principalNames.add(p.getName());

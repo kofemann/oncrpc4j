@@ -19,17 +19,21 @@
  */
 package org.dcache.xdr;
 
+import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.security.Principal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.Arrays;
-import javax.security.auth.Subject;
+import java.util.Set;
+import org.dcache.auth.GidPrincipal;
 import org.dcache.auth.Subjects;
+import org.dcache.auth.UidPrincipal;
 
 public class RpcAuthTypeUnix implements RpcAuth, XdrAble {
 
     private final int _type =  RpcAuthType.UNIX;
-    private RpcAuthVerifier _verifier = new RpcAuthVerifier(RpcAuthType.NONE, new byte[0]);
+    private final RpcAuthVerifier _verifier = new RpcAuthVerifier(RpcAuthType.NONE, new byte[0]);
 
     private int _len;
     private int _uid;
@@ -37,7 +41,6 @@ public class RpcAuthTypeUnix implements RpcAuth, XdrAble {
     private int _gids[];
     private int _stamp;
     private String _machine;
-    private Subject _subject;
 
     private final static Logger _log = LoggerFactory.getLogger(RpcAuthTypeUnix.class);
 
@@ -53,8 +56,6 @@ public class RpcAuthTypeUnix implements RpcAuth, XdrAble {
                 4/*machine len place holder*/ + _machine.length() +
                 ((4 - (_machine.length() & 3)) & 3) /*padding bytes*/+
                  + 4/*stamp*/;
-
-        _subject = Subjects.of(_uid, _gid, _gids);
     }
 
     public void xdrDecode(XdrDecodingStream xdr) throws OncRpcException, IOException {
@@ -66,13 +67,19 @@ public class RpcAuthTypeUnix implements RpcAuth, XdrAble {
         _gid = xdr.xdrDecodeInt();
         _gids = xdr.xdrDecodeIntVector();
         _verifier.xdrDecode(xdr);
-
-        _subject = Subjects.of(_uid, _gid, _gids);
     }
 
     @Override
-    public Subject getSubject() {
-        return _subject;
+    public Set<Principal> getPrincipals () {
+        Set<Principal> principals = Sets.newHashSet(
+                new UidPrincipal(_uid),
+                new GidPrincipal(_gid, true)
+        );
+
+        for(int id: _gids) {
+            principals.add(new GidPrincipal(id, false));
+        }
+        return principals;
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,7 +19,8 @@
  */
 package org.dcache.xdr;
 
-import javax.security.auth.Subject;
+import java.security.Principal;
+import java.util.Set;
 
 public interface RpcAuth extends XdrAble {
 
@@ -46,8 +47,8 @@ public interface RpcAuth extends XdrAble {
     RpcAuthVerifier getVerifier();
 
     /**
-     * Get {@link Subject} associated with credentials.
-     * @return subject.
+     * Return the {@code Set} of Principals associated with this auth flavor.
+     * @return The {@code Set} of Principals associated with this auth flavor.
      */
-    Subject getSubject();
+    Set<Principal> getPrincipals();
 }

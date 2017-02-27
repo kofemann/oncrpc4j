@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,11 +19,38 @@
  */
 package org.dcache.xdr;
 
-import org.ietf.jgss.GSSContext;
-
+import java.security.Principal;
+import java.util.Collections;
+import java.util.Set;
 import javax.security.auth.Subject;
 
+/**
+ * Implementors of this interface map credentials provided by the RPC
+ * request to a {@link Subject} which have to be used to authorize the
+ * request.
+ * This is typically used to map Kerberos principal to a UNIX user record with
+ * uid, primary gid and array of secondary gids.
+ */
 public interface RpcLoginService {
 
-    Subject login(XdrTransport transport, GSSContext context);
+    /**
+     * Login service, which returns a Subject without any principals.
+     */
+    public static RpcLoginService NOP_LOGIN_SERVICE = (XdrTransport transport, Set<Principal> in)
+            -> new Subject(true, Collections.EMPTY_SET, Collections.EMPTY_SET, Collections.EMPTY_SET);
+
+    /**
+     * Login service, which returns a Subject with all provided principals.
+     */
+    public static RpcLoginService DEFAULT_LOGIN_SERVICE = (XdrTransport transport, Set<Principal> in)
+            -> new Subject(true, in, Collections.EMPTY_SET, Collections.EMPTY_SET);
+
+
+    /**
+     * Get subjects which should be used with the request.
+     * @param transport associated with the request.
+     * @param principals principals provided by RPC request.
+     * @return subjects which must be used to authorize the request.
+     */
+    Subject login(XdrTransport transport, Set<Principal> principals);
 }

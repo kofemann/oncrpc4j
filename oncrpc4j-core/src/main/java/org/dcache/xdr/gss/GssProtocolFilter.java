@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2015 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -22,6 +22,7 @@ package org.dcache.xdr.gss;
 import com.google.common.primitives.Ints;
 import java.io.IOException;
 import java.util.UUID;
+import javax.security.auth.kerberos.KerberosPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.dcache.utils.Bytes;
@@ -40,7 +41,6 @@ import org.glassfish.grizzly.filterchain.FilterChainContext;
 import org.glassfish.grizzly.filterchain.NextAction;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSException;
-import org.ietf.jgss.GSSName;
 import org.ietf.jgss.MessageProp;
 
 /**
@@ -130,9 +130,8 @@ public class GssProtocolFilter extends BaseFilter {
                 case GssProc.RPCSEC_GSS_DATA:
                     gssContext =  _gssSessionManager.getEstablishedContext(authGss.getHandle());
                     validateVerifier(authGss, gssContext);
-                    authGss.getSubject()
-                            .getPrincipals()
-                            .addAll(_gssSessionManager.subjectOf(call.getTransport(), gssContext).getPrincipals());
+                    authGss.setPrincipal(new KerberosPrincipal(gssContext.getSrcName().toString()));
+
                     _log.debug("RPCGSS_SEC: {}", gssContext.getSrcName());
                     byte[] crc = Ints.toByteArray(authGss.getSequence());
                     crc = gssContext.getMIC(crc, 0, 4, new MessageProp(false));

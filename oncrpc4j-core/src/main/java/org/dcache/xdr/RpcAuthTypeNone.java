@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -20,17 +20,17 @@
 package org.dcache.xdr;
 
 import java.io.IOException;
+import java.security.Principal;
+import java.util.Collections;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import javax.security.auth.Subject;
-import org.dcache.auth.Subjects;
 
 public class RpcAuthTypeNone implements RpcAuth, XdrAble {
 
     private final int _type =  RpcAuthType.NONE;
     private byte[] body;
     private RpcAuthVerifier _verifier = new RpcAuthVerifier(RpcAuthType.NONE, new byte[0]);
-    private final Subject _subject = Subjects.NOBODY;
 
     private final static Logger _log = LoggerFactory.getLogger(RpcAuthTypeNone.class);
 
@@ -43,8 +43,8 @@ public class RpcAuthTypeNone implements RpcAuth, XdrAble {
     }
 
     @Override
-    public Subject getSubject() {
-        return _subject;
+    public Set<Principal> getPrincipals () {
+        return Collections.EMPTY_SET;
     }
 
     @Override

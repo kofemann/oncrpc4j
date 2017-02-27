@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2012 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -20,12 +20,11 @@
 package org.dcache.xdr;
 
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 public class RpcCallTest {
 
-    private Xdr _xdr = new XdrBuffer(1024);
-    private RpcCall _call = new RpcCall(0, _xdr, null);
+    private final Xdr _xdr = new XdrBuffer(1024);
+    private final RpcCall _call = new RpcCall(0, _xdr, null);
 
     @Test(expected=RpcMismatchReply.class)
     public void testBadRpcVerion() throws Exception {

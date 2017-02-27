@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2016 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -75,6 +75,7 @@ public class OncRpcSvcBuilder {
     private int _selectorThreadPoolSize = 0;
     private int _workerThreadPoolSize = 0;
     private boolean _subjectPropagation = false;
+    private RpcLoginService _loginService = RpcLoginService.DEFAULT_LOGIN_SERVICE;
 
     public OncRpcSvcBuilder withAutoPublish() {
         _autoPublish = true;
@@ -198,6 +199,11 @@ public class OncRpcSvcBuilder {
         return this;
     }
 
+    public OncRpcSvcBuilder withLoginService(RpcLoginService loginService) {
+        _loginService = loginService;
+        return this;
+    }
+
     public boolean getSubjectPropagation() {
         return _subjectPropagation;
     }
@@ -270,6 +276,10 @@ public class OncRpcSvcBuilder {
 
     public Map<OncRpcProgram, RpcDispatchable> getRpcServices() {
         return _programs;
+    }
+
+    public RpcLoginService getLoginService() {
+        return _loginService;
     }
 
     public OncRpcSvc build() {

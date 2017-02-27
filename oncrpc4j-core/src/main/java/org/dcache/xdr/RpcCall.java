@@ -37,6 +37,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.security.auth.Subject;
 
 public class RpcCall {
 
@@ -80,6 +81,11 @@ public class RpcCall {
      * Authentication credential.
      */
     private RpcAuth _cred;
+
+    /**
+     * Subject to use to authorize the request.
+     */
+    private Subject _subject;
 
     /**
      * RPC call transport.
@@ -191,7 +197,7 @@ public class RpcCall {
      * @throws IOException
      * @throws OncRpcException
      */
-    public void accept() throws IOException, OncRpcException {
+    public void accept(RpcLoginService loginService) throws IOException, OncRpcException {
          _rpcvers = _xdr.xdrDecodeInt();
          if (_rpcvers != RPCVERS) {
             throw new RpcMismatchReply(_rpcvers, 2);
@@ -201,6 +207,7 @@ public class RpcCall {
         _version = _xdr.xdrDecodeInt();
         _proc = _xdr.xdrDecodeInt();
         _cred = RpcCredential.decode(_xdr);
+        _subject = loginService.login(_transport, _cred.getPrincipals());
      }
 
     /**
@@ -228,6 +235,10 @@ public class RpcCall {
 
     public RpcAuth getCredential() {
         return _cred;
+    }
+
+    public Subject getSubject() {
+        return _subject;
     }
 
     /**

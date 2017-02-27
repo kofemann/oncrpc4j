@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2014 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2017 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -26,20 +26,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.security.auth.Subject;
-import javax.security.auth.kerberos.KerberosPrincipal;
-
-import org.dcache.xdr.RpcLoginService;
 import org.dcache.utils.Opaque;
 
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
-import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
-
-import org.dcache.xdr.XdrTransport;
 
 public class GssSessionManager {
 
@@ -48,9 +41,8 @@ public class GssSessionManager {
     private static final Logger _log = LoggerFactory.getLogger(GssSessionManager.class);
     private final GSSManager gManager = GSSManager.getInstance();
     private final GSSCredential _serviceCredential;
-    private final RpcLoginService _loginService;
 
-    public GssSessionManager(RpcLoginService loginService, String servicePrincipal, String keytab)
+    public GssSessionManager(String servicePrincipal, String keytab)
             throws GSSException, IOException {
         System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
         System.setProperty("java.security.auth.login.config",
@@ -60,17 +52,15 @@ public class GssSessionManager {
         _serviceCredential = gManager.createCredential(null,
                 GSSCredential.INDEFINITE_LIFETIME,
                 krb5Mechanism, GSSCredential.ACCEPT_ONLY);
-        _loginService = loginService;
     }
 
-    public GssSessionManager(RpcLoginService loginService) throws GSSException {
+    public GssSessionManager() throws GSSException {
         System.setProperty("javax.security.auth.useSubjectCredsOnly", "false");
 
         Oid krb5Mechanism = new Oid(KRB5_OID);
         _serviceCredential = gManager.createCredential(null,
                 GSSCredential.INDEFINITE_LIFETIME,
                 krb5Mechanism, GSSCredential.ACCEPT_ONLY);
-        _loginService = loginService;
     }
     private final Map<Opaque, GSSContext> sessions = new ConcurrentHashMap<>();
 
@@ -101,9 +91,5 @@ public class GssSessionManager {
             throw new GSSException(GSSException.NO_CONTEXT);
         }
         return context;
-    }
-
-    public Subject subjectOf(XdrTransport transport, GSSContext context) {
-        return _loginService.login(transport, context);
     }
 }
