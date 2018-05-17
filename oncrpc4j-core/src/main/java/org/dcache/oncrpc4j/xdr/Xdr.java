@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import org.dcache.oncrpc4j.grizzly.GrizzlyMemoryManager;
+import org.glassfish.grizzly.memory.ByteBufferWrapper;
 import org.glassfish.grizzly.Buffer;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -730,6 +731,10 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      * Encodes (aka "serializes") a sequence of bytes from the given buffer
      * to this Xdr stream.
      *
+     * NOTICE: the  provided {@code buf} is used as reference and expected that
+     * content is not change before consumed. If such guarantee can't be provided
+     * use {@link #xdrEncodeByteBufferCopy(java.nio.ByteBuffer).
+     *
      * @param buf The buffer from which bytes are to be retrieved.
      */
     @Override
@@ -737,11 +742,26 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
         int len = buf.remaining();
         int padding = (4 - (len & 3)) & 3;
         xdrEncodeInt(len);
-        ensureCapacity(len+padding);
-        _buffer.put(buf);
+        inject(buf);
+        ensureCapacity(padding);
         _buffer.position(_buffer.position() + padding);
     }
 
+    /**
+     * Encodes (aka "serializes") a sequence of bytes from the given buffer to
+     * this Xdr stream. This method copies data from provided {@code buf} into
+     * Xdr stream.
+     *
+     * @param buf The buffer from which bytes are to be retrieved.
+     */
+    public void xdrEncodeByteBufferCopy(ByteBuffer buf) {
+        int len = buf.remaining();
+        int padding = (4 - (len & 3)) & 3;
+        xdrEncodeInt(len);
+        ensureCapacity(len + padding);
+        _buffer.put(buf);
+        _buffer.position(_buffer.position() + padding);
+    }
     /**
      * Encodes (aka "serializes") a vector of bytes, which is nothing more than
      * a series of octets (or 8 bits wide bytes), each packed into its very own
@@ -870,6 +890,26 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      */
     public void close() {
         _buffer.tryDispose();
+    }
+
+    /**
+     * Inject ByteBuffer into under laying buffer. Replaces buffer with a
+     * composite buffer.
+     *
+     * @param b byte buffer to inject.
+     */
+    private void inject(ByteBuffer b) {
+        int p = _buffer.position();
+        // split buffer by it's current position
+        Buffer tail = _buffer.slice();
+        Buffer head = _buffer.flip();
+        _buffer = GrizzlyMemoryManager.createComposite(
+                head,
+                new ByteBufferWrapper(b),
+                tail
+        );
+        _buffer.position(p + b.remaining());
+        _buffer.limit(_buffer.position() + tail.remaining());
     }
 
     private void ensureCapacity(int size) {

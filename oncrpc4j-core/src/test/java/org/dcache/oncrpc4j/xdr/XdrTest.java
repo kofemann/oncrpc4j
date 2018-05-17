@@ -19,12 +19,14 @@
  */
 package org.dcache.oncrpc4j.xdr;
 
+import java.nio.ByteBuffer;
 import org.dcache.oncrpc4j.util.Bytes;
 import org.dcache.oncrpc4j.xdr.BadXdrOncRpcException;
 import org.dcache.oncrpc4j.xdr.XdrEncodingStream;
 import org.dcache.oncrpc4j.xdr.XdrDecodingStream;
 import org.dcache.oncrpc4j.xdr.Xdr;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.dcache.oncrpc4j.grizzly.GrizzlyMemoryManager;
 import org.glassfish.grizzly.Buffer;
@@ -369,6 +371,27 @@ public class XdrTest {
         xdr.xdrEncodeBoolean(true);
 
         xdr.getBytes();
+    }
+
+    @Test
+    public void testEncodeByteBuffer() throws BadXdrOncRpcException {
+
+        String s = "Hello, world!";
+        ByteBuffer b = ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8));
+        Xdr xdr = new Xdr(4);
+        xdr.beginEncoding();
+        xdr.xdrEncodeInt(123);
+        xdr.xdrEncodeByteBuffer(b);
+        xdr.xdrEncodeBoolean(false);
+        xdr.endEncoding();
+
+        xdr.beginDecoding();
+        assertEquals(123, xdr.xdrDecodeInt());
+        b = xdr.xdrDecodeByteBuffer();
+        byte[] data = new byte[b.remaining()];
+        b.get(data);
+        assertEquals(s, new String(data, StandardCharsets.UTF_8));
+        assertFalse(xdr.xdrDecodeBoolean());
     }
 
     private static Buffer allocateBuffer(int size) {
