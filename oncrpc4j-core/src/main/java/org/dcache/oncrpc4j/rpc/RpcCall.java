@@ -458,7 +458,7 @@ public class RpcCall {
 
         ReplyQueue replyQueue = _transport.getReplyQueue();
         if (callback != null) {
-            replyQueue.registerKey(xid, _transport.getLocalSocketAddress(), callback, timeoutValue, timeoutUnits);
+            replyQueue.registerKey(xid, _transport, callback, timeoutValue, timeoutUnits);
         } else {
             //no handler, so we wont get any errors if connection was dropped. have to check.
             if (!_transport.isOpen()) {

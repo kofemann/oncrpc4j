@@ -53,45 +53,31 @@ public class ReplyQueue {
      * client receives reply from the server, request failed of expired.
      *
      * @param xid xid of RPC request.
-     * @param addr socket address of remote endpoint.
-     * @param callback completion handler which will be used when request execution is
-     * finished.
-     * @throws EOFException if disconnected
-     */
-    public void registerKey(int xid, SocketAddress addr, CompletionHandler<RpcReply, RpcTransport> callback) throws EOFException {
-        registerKey(xid, addr, callback, 0, null);
-    }
-
-    /**
-     * Register callback handler for a given xid. The Callback is called when
-     * client receives reply from the server, request failed of expired.
-     *
-     * @param xid xid of RPC request.
-     * @param addr socket address of remote endpoint.
+     * @param transport rpc transport used by this request.
      * @param callback completion handler which will be used when request execution is
      * finished.
      * @param timeout how long client is interested in the reply.
      * @param timeoutUnits units in which timeout value is expressed.
      * @throws EOFException if disconnected
      */
-    public void registerKey(int xid, SocketAddress addr, CompletionHandler<RpcReply, RpcTransport> callback, final long timeout, final TimeUnit timeoutUnits) throws EOFException {
+    public void registerKey(int xid, RpcTransport transport, CompletionHandler<RpcReply, RpcTransport> callback, final long timeout, final TimeUnit timeoutUnits) throws EOFException {
         ScheduledFuture<?> scheduledTimeout = null;
         if (timeout > 0 && timeoutUnits != null) {
             scheduledTimeout = executorService.schedule(() -> {
                 CompletionHandler<RpcReply, RpcTransport> handler = get(xid);
                 if (handler != null) { //means we're 1st, no response yet
-                    handler.failed(new TimeoutException("did not get a response within " + timeout + " " + timeoutUnits), null);
+                    handler.failed(new TimeoutException("did not get a response within " + timeout + " " + timeoutUnits), transport);
                 }
             }, timeout, timeoutUnits);
         }
-        _queue.put(xid, new PendingRequest(addr, callback, scheduledTimeout));
+        _queue.put(xid, new PendingRequest(transport, callback, scheduledTimeout));
     }
 
     public void handleDisconnect(SocketAddress addr) {
         EOFException eofException = new EOFException("Disconnected");
 
         _queue.entrySet().stream()
-                .filter(e -> e.getValue().addr.equals(addr))
+                .filter(e -> e.getValue().transport.getLocalSocketAddress().equals(addr))
                 .forEach(e -> {
                     e.getValue().failed(eofException);
                     _queue.remove(e.getKey());
@@ -126,12 +112,12 @@ public class ReplyQueue {
     public static class PendingRequest {
         private final CompletionHandler<RpcReply, RpcTransport> handler;
         private final ScheduledFuture<?> scheduledTimeout;
-        private final SocketAddress addr;
+        private final RpcTransport transport;
 
-        public PendingRequest(SocketAddress addr, CompletionHandler<RpcReply, RpcTransport> handler, ScheduledFuture<?> scheduledTimeout) {
+        public PendingRequest(RpcTransport transport, CompletionHandler<RpcReply, RpcTransport> handler, ScheduledFuture<?> scheduledTimeout) {
             this.handler = handler;
             this.scheduledTimeout = scheduledTimeout;
-            this.addr = addr;
+            this.transport = transport;
         }
 
         void cancelTimeout() {
@@ -142,7 +128,7 @@ public class ReplyQueue {
 
         void failed(Throwable t) {
             cancelTimeout();
-            handler.failed(t, null);
+            handler.failed(t, transport);
         }
     }
 
