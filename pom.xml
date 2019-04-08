@@ -41,6 +41,7 @@
       <module>oncrpc4j-spring</module>
       <module>oncrpc4j-rpcgen</module>
       <module>oncrpc4j-portmapdaemon</module>
+      <module>oncrpc4j-benchmark</module>
   </modules>
   
   <properties>
@@ -272,7 +273,16 @@
               <artifactId>bctls-jdk15on</artifactId>
               <version>${bc.version}</version>
           </dependency>
-
+          <dependency>
+              <groupId>org.openjdk.jmh</groupId>
+              <artifactId>jmh-core</artifactId>
+              <version>1.21</version>
+          </dependency>
+          <dependency>
+              <groupId>org.openjdk.jmh</groupId>
+              <artifactId>jmh-generator-annprocess</artifactId>
+              <version>1.21</version>
+          </dependency>
       </dependencies>
   </dependencyManagement>
 
