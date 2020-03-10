@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2019 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -20,10 +20,10 @@
 package org.dcache.oncrpc4j.xdr;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import org.dcache.oncrpc4j.grizzly.GrizzlyMemoryManager;
-import org.glassfish.grizzly.Buffer;
+
+import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBuf;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -42,7 +42,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     /**
      * Byte buffer used by XDR record.
      */
-    protected volatile Buffer _buffer;
+    protected volatile ByteBuf _buffer;
 
     /**
      * Indicates that encoding/decoding is in progress.
@@ -55,7 +55,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      * @param size of the buffer in bytes
      */
     public Xdr(int size) {
-        this(GrizzlyMemoryManager.allocate(size));
+        this(Unpooled.buffer(size));
     }
 
 
@@ -69,42 +69,38 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      * @param  bytes The array that will back this Xdr.
      */
     public Xdr(byte[] bytes) {
-        this(GrizzlyMemoryManager.wrap(bytes));
+        this(Unpooled.wrappedBuffer(bytes));
     }
 
     /**
-     * Create a new XDR back ended with given {@link ByteBuffer}.
+     * Create a new XDR back ended with given {@link ByteBuf}.
      * @param body buffer to use
      */
-    public Xdr(Buffer body) {
+    public Xdr(ByteBuf body) {
         _buffer = body;
-        _buffer.order(ByteOrder.BIG_ENDIAN);
     }
 
     @Override
     public void beginDecoding() {
-        /*
-         * Set position to the beginning of this XDR in back end buffer.
-         */
-        _buffer.rewind();
+        _buffer.readerIndex(0);
         _inUse = true;
     }
 
     @Override
     public void endDecoding() {
-        _buffer.rewind();
+        _buffer.readerIndex(0);
         _inUse = false;
     }
 
     @Override
     public void beginEncoding() {
-        _buffer.clear();
+        _buffer.writerIndex(0);
         _inUse = true;
     }
 
     @Override
     public void endEncoding() {
-        _buffer.flip();
+        _buffer.readerIndex(0);
         _inUse = false;
     }
 
@@ -113,7 +109,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      * @return true if, and only if, there is data available in the stream
      */
     public boolean hasMoreData() {
-        return _buffer.hasRemaining();
+        return _buffer.isReadable();
     }
 
     /**
@@ -129,7 +125,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public int xdrDecodeInt() throws BadXdrOncRpcException {
         ensureBytes(Integer.BYTES);
-        int val = _buffer.getInt();
+        int val = _buffer.readInt();
         return val;
     }
 
@@ -300,8 +296,8 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     public void xdrDecodeOpaque(byte[] buf, int offset, int len) throws BadXdrOncRpcException {
         int padding = (4 - (len & 3)) & 3;
         ensureBytes(len + padding);
-        _buffer.get(buf, offset, len);
-        _buffer.position(_buffer.position() + padding);
+        _buffer.readBytes(buf, offset, len);
+        _buffer.readerIndex(_buffer.readerIndex() + padding);
     }
 
     public void xdrDecodeOpaque(byte[] buf,  int len) throws BadXdrOncRpcException {
@@ -365,7 +361,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public long xdrDecodeLong() throws BadXdrOncRpcException {
         ensureBytes(Long.BYTES);
-        return _buffer.getLong();
+        return _buffer.readLong();
     }
 
     @Override
@@ -380,10 +376,10 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
         * the backended heap. To be able to use rewind, flip and so on
         * we have to use slice of it.
         */
-        ByteBuffer slice = _buffer.toByteBuffer().slice();
+        ByteBuffer slice = _buffer.nioBuffer().slice();
         slice.rewind();
         slice.limit(len);
-        _buffer.position(_buffer.position() + len + padding);
+        _buffer.readerIndex(_buffer.readerIndex() + len + padding);
         return slice;
     }
 
@@ -493,18 +489,18 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public void xdrEncodeInt(int value) {
         ensureCapacity(Integer.BYTES);
-        _buffer.putInt(value);
+        _buffer.writeInt(value);
     }
 
     /**
-     * Returns the {@link Buffer} that backs this xdr.
+     * Returns the {@link ByteBuf} that backs this xdr.
      *
      * <p>Modifications to this xdr's content will cause the returned
      * buffer's content to be modified, and vice versa.
      *
-     * @return The {@link Buffer} that backs this xdr
+     * @return The {@link ByteBuf} that backs this xdr
      */
-    public Buffer asBuffer() {
+    public ByteBuf asBuffer() {
         return _buffer;
     }
 
@@ -518,9 +514,9 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public void xdrEncodeIntVector(int[] values) {
         ensureCapacity(Integer.BYTES+Integer.BYTES*values.length);
-        _buffer.putInt(values.length);
+        _buffer.writeInt(values.length);
         for (int value: values) {
-            _buffer.putInt( value );
+            _buffer.writeInt( value );
         }
     }
 
@@ -552,9 +548,9 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public void xdrEncodeLongVector(long[] values) {
         ensureCapacity(Integer.BYTES+Long.BYTES*values.length);
-        _buffer.putInt(values.length);
+        _buffer.writeInt(values.length);
         for (long value : values) {
-            _buffer.putLong(value);
+            _buffer.writeLong(value);
         }
     }
 
@@ -688,8 +684,8 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     public void xdrEncodeOpaque(byte[] bytes, int offset, int len) {
         int padding = (4 - (len & 3)) & 3;
         ensureCapacity(len+padding);
-        _buffer.put(bytes, offset, len);
-        _buffer.put(paddingZeros, 0, padding);
+        _buffer.writeBytes(bytes, offset, len);
+        _buffer.writeBytes(paddingZeros, 0, padding);
     }
 
     @Override
@@ -723,7 +719,7 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
     @Override
     public void xdrEncodeLong(long value) {
         ensureCapacity(Long.BYTES);
-       _buffer.putLong(value);
+       _buffer.writeLong(value);
     }
 
     /**
@@ -738,8 +734,8 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
         int padding = (4 - (len & 3)) & 3;
         xdrEncodeInt(len);
         ensureCapacity(len+padding);
-        _buffer.put(buf);
-        _buffer.position(_buffer.position() + padding);
+        _buffer.writeBytes(buf);
+        _buffer.writerIndex(_buffer.writerIndex() + padding);
     }
 
     /**
@@ -855,10 +851,10 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      */
     public byte[] getBytes() {
         checkState(!_inUse, "getBytes called while buffer in use");
-        int size = _buffer.remaining();
+        int size = _buffer.readableBytes();
         byte[] bytes = new byte[size];
-        Buffer dup = _buffer.duplicate();
-        dup.get(bytes);
+        ByteBuf dup = _buffer.duplicate();
+        dup.readBytes(bytes);
         return bytes;
     }
 
@@ -866,19 +862,15 @@ public class Xdr implements XdrDecodingStream, XdrEncodingStream, AutoCloseable 
      * Closes this stream, relinquishing any underlying resources.
      */
     public void close() {
-        _buffer.tryDispose();
+        _buffer.release();
     }
 
     private void ensureCapacity(int size) {
-        if(_buffer.remaining() < size) {
-            int oldCapacity = _buffer.capacity();
-            int newCapacity = Math.max((oldCapacity * 3) / 2 + 1, oldCapacity + size);
-            _buffer = GrizzlyMemoryManager.reallocate(_buffer, newCapacity);
-        }
+        _buffer.ensureWritable(size);
     }
 
     private void ensureBytes(int size) throws BadXdrOncRpcException {
-        if (_buffer.remaining() < size) {
+        if (!_buffer.isReadable(size)) {
             throw new BadXdrOncRpcException("xdr stream too short");
         }
     }

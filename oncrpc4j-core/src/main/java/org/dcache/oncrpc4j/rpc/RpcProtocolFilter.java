@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,18 +19,17 @@
  */
 package org.dcache.oncrpc4j.rpc;
 
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.MessageToMessageEncoder;
 import org.dcache.oncrpc4j.xdr.Xdr;
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.channels.CompletionHandler;
+import java.util.List;
+
 import org.dcache.oncrpc4j.grizzly.GrizzlyRpcTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.glassfish.grizzly.filterchain.BaseFilter;
-import org.glassfish.grizzly.filterchain.FilterChainContext;
-import org.glassfish.grizzly.filterchain.NextAction;
 
-public class RpcProtocolFilter extends BaseFilter {
+public class RpcProtocolFilter extends MessageToMessageEncoder<Xdr> {
 
     private final static Logger _log = LoggerFactory.getLogger(RpcProtocolFilter.class);
     private final ReplyQueue _replyQueue;
@@ -40,13 +39,7 @@ public class RpcProtocolFilter extends BaseFilter {
     }
 
     @Override
-    public NextAction handleRead(FilterChainContext ctx) throws IOException {
-
-        Xdr xdr = ctx.getMessage();
-        if (xdr == null) {
-            _log.error("Parser returns bad XDR");
-            return ctx.getStopAction();
-        }
+    public void encode(ChannelHandlerContext ctx, Xdr xdr, List<Object> out) throws Exception {
 
         xdr.beginDecoding();
 
@@ -56,24 +49,21 @@ public class RpcProtocolFilter extends BaseFilter {
          * We have to get peer address from the request context, which will contain SocketAddress where from
          * request was coming.
          */
-        RpcTransport transport = new GrizzlyRpcTransport(ctx.getConnection(), (InetSocketAddress)ctx.getAddress(), _replyQueue);
+        RpcTransport transport = new GrizzlyRpcTransport(ctx.channel(), ctx.channel().remoteAddress(), _replyQueue);
 
         switch (message.type()) {
             case RpcMessageType.CALL:
                 RpcCall call = new RpcCall(message.xid(), xdr, transport);
                 try {
                     call.accept();
-                    ctx.setMessage(call);
+                    out.add(call);
 
                 } catch (RpcException e) {
                     call.reject(e.getStatus(), e.getRpcReply());
                     _log.info("RPC request rejected: {}", e.getMessage());
-                    return ctx.getStopAction();
                 } catch (OncRpcException e) {
                     _log.info("failed to process RPC request: {}", e.getMessage());
-                    return ctx.getStopAction();
                 }
-                return ctx.getInvokeAction();
             case RpcMessageType.REPLY:
                 try {
                     RpcReply reply = new RpcReply(message.xid(), xdr, transport);
@@ -90,10 +80,8 @@ public class RpcProtocolFilter extends BaseFilter {
                 } catch (OncRpcException e) {
                     _log.warn("failed to decode reply:", e);
                 }
-                return ctx.getStopAction();
             default:
                 // bad XDR
-                return ctx.getStopAction();
         }
     }
 }

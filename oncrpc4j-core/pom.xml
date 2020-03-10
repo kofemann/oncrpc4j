@@ -35,8 +35,8 @@
           <artifactId>slf4j-api</artifactId>
       </dependency>
       <dependency>
-          <groupId>org.glassfish.grizzly</groupId>
-          <artifactId>grizzly-framework</artifactId>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-all</artifactId>
       </dependency>
       <dependency>
           <groupId>com.google.guava</groupId>

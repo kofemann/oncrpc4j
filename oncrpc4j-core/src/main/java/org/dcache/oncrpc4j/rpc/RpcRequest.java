@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2018 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,24 +19,26 @@
  */
 package org.dcache.oncrpc4j.rpc;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import org.dcache.oncrpc4j.xdr.Xdr;
-
-import java.util.List;
+import org.dcache.oncrpc4j.xdr.XdrAble;
 
 /**
- * {@code Filter} to receive RPC message over UDP connection.
- * According to RFC 1831 RPC message over UDP arrived in a single
- * UDP packet.
  */
-public class RpcMessageParserUDP extends ByteToMessageDecoder {
+public class RpcRequest {
 
-    @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf bb, List<Object> out) throws Exception {
+    private final XdrAble arg;
+    private final RpcTransport transport;
 
-        Xdr xdr = new Xdr(bb);
-        out.add(xdr);
+    public RpcRequest(XdrAble arg, RpcTransport transport) {
+        this.arg = arg;
+        this.transport = transport;
     }
+
+    public XdrAble getArg() {
+        return arg;
+    }
+
+    public RpcTransport getTransport() {
+        return transport;
+    }
+
 }

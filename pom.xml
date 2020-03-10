@@ -66,7 +66,7 @@
 
     <!--  version of dependencies-->
     <dcache-auth.version>0.0.11</dcache-auth.version>
-    <grizzly-framework.version>2.4.3</grizzly-framework.version>
+    <netty.version>4.1.47.Final</netty.version>
     <guava.version>24.1-jre</guava.version>
     <slf4j-api.version>1.7.25</slf4j-api.version>
     <spring-context.version>5.1.0.RELEASE</spring-context.version>
@@ -215,9 +215,9 @@
   <dependencyManagement>
       <dependencies>
           <dependency>
-              <groupId>org.glassfish.grizzly</groupId>
-              <artifactId>grizzly-framework</artifactId>
-              <version>${grizzly-framework.version}</version>
+              <groupId>io.netty</groupId>
+              <artifactId>netty-all</artifactId>
+              <version>${netty.version}</version>
           </dependency>
           <dependency>
               <groupId>org.springframework</groupId>

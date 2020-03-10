@@ -19,18 +19,17 @@
  */
 package org.dcache.oncrpc4j.rpc;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import org.dcache.oncrpc4j.xdr.Xdr;
 import java.io.IOException;
 
-import java.nio.ByteOrder;
-import org.dcache.oncrpc4j.grizzly.GrizzlyMemoryManager;
-import org.glassfish.grizzly.Buffer;
-import org.glassfish.grizzly.filterchain.BaseFilter;
-import org.glassfish.grizzly.filterchain.FilterChainContext;
-import org.glassfish.grizzly.filterchain.NextAction;
-import org.glassfish.grizzly.memory.BuffersBuffer;
+import java.util.List;
 
-public class RpcMessageParserTCP extends BaseFilter {
+public class RpcMessageParserTCP extends ByteToMessageDecoder {
 
     /**
      * RPC fragment record marker mask
@@ -42,56 +41,27 @@ public class RpcMessageParserTCP extends BaseFilter {
     private final static int RPC_SIZE_MASK = 0x7fffffff;
 
     @Override
-    public NextAction handleRead(FilterChainContext ctx) throws IOException {
+    protected void decode(ChannelHandlerContext ctx, ByteBuf bb, List<Object> out) throws Exception {
 
-        Buffer messageBuffer = ctx.getMessage();
-        if (messageBuffer == null) {
-            return ctx.getStopAction();
+        if (!isAllFragmentsArrived(bb)) {
+            return;
         }
 
-        if (!isAllFragmentsArrived(messageBuffer)) {
-            return ctx.getStopAction(messageBuffer);
-        }
-
-        ctx.setMessage(assembleXdr(messageBuffer));
-
-        final Buffer reminder = messageBuffer.hasRemaining()
-                ? messageBuffer.split(messageBuffer.position()) : null;
-
-        return ctx.getInvokeAction(reminder);
+        out.add(assembleXdr(bb));
     }
 
-    @Override
-    public NextAction handleWrite(FilterChainContext ctx) throws IOException {
+    private boolean isAllFragmentsArrived(ByteBuf messageBuffer) throws IOException {
+        final ByteBuf buffer = messageBuffer.duplicate();
 
-        Buffer b = ctx.getMessage();
-        int len = b.remaining() | RPC_LAST_FRAG;
+        while (buffer.isReadable(4)) {
 
-        Buffer marker = GrizzlyMemoryManager.allocate(4);
-        marker.order(ByteOrder.BIG_ENDIAN);
-        marker.putInt(len);
-        marker.flip();
-        marker.allowBufferDispose(true);
-        b.allowBufferDispose(true);
-        Buffer composite = GrizzlyMemoryManager.createComposite(marker, b);
-        composite.allowBufferDispose(true);
-        ctx.setMessage(composite);
-        return ctx.getInvokeAction();
-    }
-
-    private boolean isAllFragmentsArrived(Buffer messageBuffer) throws IOException {
-        final Buffer buffer = messageBuffer.duplicate();
-        buffer.order(ByteOrder.BIG_ENDIAN);
-
-        while (buffer.remaining() >= 4) {
-
-            int messageMarker = buffer.getInt();
+            int messageMarker = buffer.readInt();
             int size = getMessageSize(messageMarker);
 
             /*
-             * fragmen size bigger than we have received
+             * fragment size bigger than we have received
              */
-            if (size > buffer.remaining()) {
+            if (!buffer.isReadable(size)) {
                 return false;
             }
 
@@ -105,7 +75,7 @@ public class RpcMessageParserTCP extends BaseFilter {
             /*
              * seek to the end of the current fragment
              */
-            buffer.position(buffer.position() + size);
+            buffer.readerIndex(buffer.readerIndex() + size);
         }
 
         return false;
@@ -119,33 +89,33 @@ public class RpcMessageParserTCP extends BaseFilter {
         return (marker & RPC_LAST_FRAG) != 0;
     }
 
-    private Xdr assembleXdr(Buffer messageBuffer) {
+    private Xdr assembleXdr(ByteBuf messageBuffer) {
 
-        Buffer currentFragment;
-        BuffersBuffer multipleFragments = null;
+        ByteBuf currentFragment;
+        CompositeByteBuf multipleFragments = null;
 
         boolean messageComplete;
         do {
-            int messageMarker = messageBuffer.getInt();
+            int messageMarker = messageBuffer.readInt();
 
             int size = getMessageSize(messageMarker);
             messageComplete = isLastFragment(messageMarker);
 
-            int pos = messageBuffer.position();
+            int pos = messageBuffer.readerIndex();
             currentFragment = messageBuffer.slice(pos, pos + size);
-            currentFragment.limit(size);
+            currentFragment.capacity(size);
 
-            messageBuffer.position(pos + size);
+            messageBuffer.readerIndex(pos + size);
             if (!messageComplete & multipleFragments == null) {
                 /*
                  * we use composite buffer only if required
                  * as they not for free.
                  */
-                multipleFragments = GrizzlyMemoryManager.create();
+                multipleFragments = Unpooled.compositeBuffer();
             }
 
             if (multipleFragments != null) {
-                multipleFragments.append(currentFragment);
+                multipleFragments.addComponent(currentFragment);
             }
         } while (!messageComplete);
 

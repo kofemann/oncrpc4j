@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2019 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -19,6 +19,16 @@
  */
 package org.dcache.oncrpc4j.rpc;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.DatagramChannel;
+import io.netty.channel.socket.ServerSocketChannel;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.dcache.oncrpc4j.grizzly.StartTlsFilter;
 import org.dcache.oncrpc4j.rpc.net.IpProtocolType;
 import org.dcache.oncrpc4j.rpc.net.InetSocketAddresses;
@@ -27,26 +37,6 @@ import org.dcache.oncrpc4j.rpc.gss.GssSessionManager;
 import org.dcache.oncrpc4j.portmap.GenericPortmapClient;
 import org.dcache.oncrpc4j.portmap.OncPortmapClient;
 import org.dcache.oncrpc4j.portmap.OncRpcPortmap;
-import org.glassfish.grizzly.CloseType;
-import org.glassfish.grizzly.Connection;
-import org.glassfish.grizzly.ConnectionProbe;
-import org.glassfish.grizzly.GrizzlyFuture;
-import org.glassfish.grizzly.PortRange;
-import org.glassfish.grizzly.SocketBinder;
-import org.glassfish.grizzly.Transport;
-import org.glassfish.grizzly.filterchain.FilterChain;
-import org.glassfish.grizzly.filterchain.FilterChainBuilder;
-import org.glassfish.grizzly.filterchain.TransportFilter;
-import org.glassfish.grizzly.jmxbase.GrizzlyJmxManager;
-import org.glassfish.grizzly.nio.NIOTransport;
-import org.glassfish.grizzly.nio.transport.TCPNIOTransport;
-import org.glassfish.grizzly.nio.transport.TCPNIOTransportBuilder;
-import org.glassfish.grizzly.nio.transport.UDPNIOTransport;
-import org.glassfish.grizzly.nio.transport.UDPNIOTransportBuilder;
-import org.glassfish.grizzly.ssl.SSLEngineConfigurator;
-import org.glassfish.grizzly.ssl.SSLFilter;
-import org.glassfish.grizzly.strategies.SameThreadIOStrategy;
-import org.glassfish.grizzly.threadpool.ThreadPoolConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,23 +50,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import javax.net.ssl.SSLContext;
 
 import static com.google.common.base.Throwables.getRootCause;
 import static com.google.common.base.Throwables.propagateIfPossible;
+import static org.dcache.oncrpc4j.grizzly.GrizzlyUtils.*;
+
 import java.net.SocketAddress;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLParameters;
 import org.dcache.oncrpc4j.grizzly.GrizzlyRpcTransport;
-import static org.dcache.oncrpc4j.grizzly.GrizzlyUtils.getSelectorPoolCfg;
-import static org.dcache.oncrpc4j.grizzly.GrizzlyUtils.rpcMessageReceiverFor;
-import static org.dcache.oncrpc4j.grizzly.GrizzlyUtils.transportFor;
 
 public class OncRpcSvc {
 
@@ -87,9 +71,8 @@ public class OncRpcSvc {
     private final PortRange _portRange;
     private final String _bindAddress;
     private final boolean _isClient;
-    private final List<NIOTransport> _transports = new ArrayList<>();
-    private final Set<Connection<InetSocketAddress>> _boundConnections =
-            new HashSet<>();
+    private final List<Bootstrap> _transports = new ArrayList<>();
+    private final Set<Channel> _boundConnections =  new HashSet<>();
 
     private final ExecutorService _requestExecutor;
 
@@ -127,6 +110,8 @@ public class OncRpcSvc {
      */
     private final String _svcName;
 
+    private final ServerBootstrap bootstrap = new ServerBootstrap();
+
     /**
      * Create new RPC service with defined configuration.
      * @param builder to build this service
@@ -139,33 +124,28 @@ public class OncRpcSvc {
             throw new IllegalArgumentException("TCP or UDP protocol have to be defined");
         }
 
-        IoStrategy ioStrategy = builder.getIoStrategy();
         String serviceName = builder.getServiceName();
-        ThreadPoolConfig selectorPoolConfig = getSelectorPoolCfg(ioStrategy,
-                serviceName,
-                builder.getSelectorThreadPoolSize());
+
+        ThreadFactory selectorThreadFactory = new ThreadFactoryBuilder()
+                .setNameFormat(serviceName + " SelectorRunner-%d")
+                .build();
 
         if ((protocol & IpProtocolType.TCP) != 0) {
-            final TCPNIOTransport tcpTransport = TCPNIOTransportBuilder
-                    .newInstance()
-                    .setReuseAddress(true)
-                    .setIOStrategy(SameThreadIOStrategy.getInstance())
-                    .setSelectorThreadPoolConfig(selectorPoolConfig)
-                    .setSelectorRunnersCount(selectorPoolConfig.getMaxPoolSize())
-                    .build();
-            _transports.add(tcpTransport);
+            EventLoopGroup workerGroup = new NioEventLoopGroup(getSelectorPoolSize(builder.getIoStrategy()), selectorThreadFactory);
+            Bootstrap bootstrap = new Bootstrap();
+            bootstrap.group(workerGroup);
+            bootstrap.channel(NioServerSocketChannel.class);
+            _transports.add(bootstrap);
         }
 
         if ((protocol & IpProtocolType.UDP) != 0) {
-            final UDPNIOTransport udpTransport = UDPNIOTransportBuilder
-                    .newInstance()
-                    .setReuseAddress(true)
-                    .setIOStrategy(SameThreadIOStrategy.getInstance())
-                    .setSelectorThreadPoolConfig(selectorPoolConfig)
-                    .setSelectorRunnersCount(selectorPoolConfig.getMaxPoolSize())
-                    .build();
-            _transports.add(udpTransport);
+            EventLoopGroup workerGroup = new NioEventLoopGroup(getSelectorPoolSize(builder.getIoStrategy()), selectorThreadFactory);
+            Bootstrap bootstrap = new Bootstrap();
+            bootstrap.group(workerGroup);
+            bootstrap.channel(NioDatagramChannel.class);
+            _transports.add(bootstrap);
         }
+
         _isClient = builder.isClient();
         _portRange = builder.getMinPort() > 0 ?
                 new PortRange(builder.getMinPort(), builder.getMaxPort()) : null;
@@ -173,17 +153,11 @@ public class OncRpcSvc {
         _backlog = builder.getBacklog();
         _bindAddress = builder.getBindAddress();
 
-        if (builder.isWithJMX()) {
-            final GrizzlyJmxManager jmxManager = GrizzlyJmxManager.instance();
-	    _transports.forEach((t) -> {
-		jmxManager.registerAtRoot(t.getMonitoringConfig().createManagementObject(), t.getName() + "-" + _portRange);
-	    });
-        }
         _requestExecutor = builder.getWorkerThreadExecutorService();
         _gssSessionManager = builder.getGssSessionManager();
         _programs.putAll(builder.getRpcServices());
         _withSubjectPropagation = builder.getSubjectPropagation();
-	_svcName = builder.getServiceName();
+        _svcName = builder.getServiceName();
         _sslContext = builder.getSSLContext();
         _startTLS = builder.isStartTLS();
         _sslParams = builder.getSSLParameters();
@@ -226,7 +200,7 @@ public class OncRpcSvc {
      * @throws IOException
      * @throws UnknownHostException
      */
-    private void publishToPortmap(Connection<InetSocketAddress> connection, Set<OncRpcProgram> programs) throws IOException {
+    private void publishToPortmap(Channel connection, Set<OncRpcProgram> programs) throws IOException {
 
         OncRpcClient rpcClient = new OncRpcClient(InetAddress.getByName(null),
                 IpProtocolType.UDP, OncRpcPortmap.PORTMAP_PORT);
@@ -237,20 +211,19 @@ public class OncRpcSvc {
 
             Set<String> netids = new HashSet<>();
             String username = System.getProperty("user.name");
-            Transport t = connection.getTransport();
-            String uaddr = InetSocketAddresses.uaddrOf(connection.getLocalAddress());
+            String uaddr = InetSocketAddresses.uaddrOf((InetSocketAddress) connection.localAddress());
 
             String netidBase;
-            if (t instanceof TCPNIOTransport) {
+            if (connection instanceof ServerSocketChannel) {
                 netidBase = "tcp";
-            } else if (t instanceof UDPNIOTransport) {
+            } else if (connection instanceof DatagramChannel) {
                 netidBase = "udp";
             } else {
                 // must never happens
                 throw new RuntimeException("Unsupported transport type: " + t.getClass().getCanonicalName());
             }
 
-            InetAddress localAddress = connection.getLocalAddress().getAddress();
+            InetAddress localAddress = ((InetSocketAddress)connection.localAddress()).getAddress();
             if (localAddress instanceof Inet6Address) {
                 netids.add(netidBase + "6");
                 if (((Inet6Address)localAddress).isIPv4CompatibleAddress()) {
@@ -315,10 +288,34 @@ public class OncRpcSvc {
             clearPortmap(_programs.keySet());
         }
 
-        for (Transport t : _transports) {
+        bootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
 
-            FilterChainBuilder filterChain = FilterChainBuilder.stateless();
-            filterChain.add(new TransportFilter());
+            protected void initChannel(SocketChannel channel) throws Exception {
+                ChannelPipeline pipeline = channel.pipeline();
+                pipeline.addLast("rpc-message-fragment-collector", new RpcMessageParserTCP());
+                pipeline.addLast("rpc-request-dispatcher", new RpcDispatcher(_requestExecutor, _programs, _withSubjectPropagation));
+                pipeline.addLast("rpc-reply-sender", new RpcMessageTcpEncoder());
+            }
+
+        });
+
+
+        for (Bootstrap t : _transports) {
+
+            ChannelInitializer channelInitializer = new ChannelInitializer<SocketChannel>() {
+
+                protected void initChannel(SocketChannel channel) throws Exception {
+                    ChannelPipeline pipeline = channel.pipeline();
+                    pipeline.addLast("rpc-message-fragment-collector", new RpcMessageParserTCP());
+                    pipeline.addLast("rpc-request-dispatcher", new RpcDispatcher(_requestExecutor, _programs, _withSubjectPropagation));
+                    pipeline.addLast("rpc-reply-sender", new RpcMessageTcpEncoder());
+                }
+
+
+            };
+
+            t.handler(channelInitializer);
+
             if (_sslContext != null) {
                 SSLEngineConfigurator serverSSLEngineConfigurator =
                         new SSLEngineConfigurator(_sslContext, false, false, false);
@@ -349,12 +346,7 @@ public class OncRpcSvc {
             if (_gssSessionManager != null) {
                 filterChain.add(new GssProtocolFilter(_gssSessionManager));
             }
-            filterChain.add(new RpcDispatcher(_requestExecutor, _programs, _withSubjectPropagation));
-
-            final FilterChain filters = filterChain.build();
-
-            t.setProcessor(filters);
-            t.getConnectionMonitoringConfig().addProbes(new ConnectionProbe.Adapter() {
+            t..addProbes(new ConnectionProbe.Adapter() {
                 @Override
                 public void onCloseEvent(Connection connection) {
                     if (connection.getCloseReason().getType() == CloseType.REMOTELY) {
@@ -364,17 +356,17 @@ public class OncRpcSvc {
             });
 
             if(!_isClient) {
-                Connection<InetSocketAddress> connection = _portRange == null ?
-                        ((SocketBinder) t).bind(_bindAddress, 0, _backlog) :
-                        ((SocketBinder) t).bind(_bindAddress, _portRange, _backlog);
+                ChannelFuture cf = _portRange == null ?
+                        t.bind(_bindAddress, 0) :
+                        t.bind(_bindAddress, _portRange);
 
-                _boundConnections.add(connection);
+                _boundConnections.add(cf.channel());
 
                 if (_publish) {
-                    publishToPortmap(connection, _programs.keySet());
+                    publishToPortmap(cf.channel(), _programs.keySet());
                 }
             }
-            t.start();
+            t.bind();
 
         }
     }
@@ -385,8 +377,8 @@ public class OncRpcSvc {
             clearPortmap(_programs.keySet());
         }
 
-        for (Transport t : _transports) {
-            t.shutdownNow();
+        for (Bootstrap t : _transports) {
+            t.config().group().shutdownGracefully();
         }
 
         _replyQueue.shutdown();
@@ -399,12 +391,12 @@ public class OncRpcSvc {
             clearPortmap(_programs.keySet());
         }
 
-        List<GrizzlyFuture<Transport>> transportsShuttingDown = new ArrayList<>();
-        for (Transport t : _transports) {
-            transportsShuttingDown.add(t.shutdown(gracePeriod, timeUnit));
+        List<Future<?>> transportsShuttingDown = new ArrayList<>();
+        for (Bootstrap t : _transports) {
+            transportsShuttingDown.add(t.config().group().shutdownGracefully(0, gracePeriod, timeUnit));
         }
 
-        for (GrizzlyFuture<Transport> transportShuttingDown : transportsShuttingDown) {
+        for (Future<?> transportShuttingDown : transportsShuttingDown) {
             try {
                 transportShuttingDown.get();
             } catch (InterruptedException e) {
@@ -425,9 +417,9 @@ public class OncRpcSvc {
     public RpcTransport connect(InetSocketAddress socketAddress, long timeout, TimeUnit timeUnit) throws IOException {
 
         // in client mode only one transport is defined
-        NIOTransport transport = _transports.get(0);
+        Bootstrap transport = _transports.get(0);
 
-        Future<Connection> connectFuture;
+        ChannelFuture connectFuture;
         if (_portRange != null) {
             InetSocketAddress localAddress = new InetSocketAddress(_portRange.getLower());
             connectFuture = transport.connect(socketAddress, localAddress);
@@ -437,8 +429,9 @@ public class OncRpcSvc {
 
         try {
             //noinspection unchecked
-            Connection<InetSocketAddress> connection = connectFuture.get(timeout, timeUnit);
-            return new GrizzlyRpcTransport(connection, _replyQueue);
+            connectFuture.get(timeout, timeUnit);
+            Channel channel = connectFuture.channel();
+            return new GrizzlyRpcTransport(channel, _replyQueue);
         } catch (ExecutionException e) {
             Throwable t = getRootCause(e);
             propagateIfPossible(t, IOException.class);
@@ -456,10 +449,11 @@ public class OncRpcSvc {
      * this service, or <code>null</code> if it is not bound yet.
      */
     public InetSocketAddress getInetSocketAddress(int protocol) {
-        Class< ? extends Transport> transportClass = transportFor(protocol);
+        Class< ? extends Channel> transportClass = transportFor(protocol);
 	return _boundConnections.stream()
-		.filter(c -> c.getTransport().getClass() == transportClass)
-		.map(Connection::getLocalAddress)
+		.filter(c -> c.getClass() == transportClass)
+		.map(Channel::localAddress)
+        .map(InetSocketAddress.class::cast)
 		.findAny()
 		.orElse(null);
     }
@@ -475,7 +469,7 @@ public class OncRpcSvc {
     @Override
     public String toString() {
 	return _boundConnections.stream()
-		.map(Connection::getLocalAddress)
+		.map(Channel::localAddress)
 		.map(Object::toString)
 		.collect(Collectors.joining(",", getName() +"-[", "]"));
     }

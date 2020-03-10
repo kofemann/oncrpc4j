@@ -19,6 +19,9 @@
  */
 package org.dcache.oncrpc4j.grizzly;
 
+import io.netty.channel.Channel;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 import org.dcache.oncrpc4j.rpc.RpcMessageParserTCP;
 import org.dcache.oncrpc4j.rpc.RpcMessageParserUDP;
 import org.dcache.oncrpc4j.rpc.net.IpProtocolType;
@@ -67,17 +70,17 @@ public class GrizzlyUtils {
         throw new RuntimeException("Unsupported transport: " + t.getClass().getName());
     }
 
-    public static Class< ? extends Transport> transportFor(int protocol) {
+    public static Class< ? extends Channel> transportFor(int protocol) {
         switch(protocol) {
             case IpProtocolType.TCP:
-                return TCPNIOTransport.class;
+                return NioServerSocketChannel.class;
             case IpProtocolType.UDP:
-                return UDPNIOTransport.class;
+                return NioDatagramChannel.class;
         }
         throw new RuntimeException("Unsupported protocol: " + protocol);
     }
 
-    static private int getSelectorPoolSize(IoStrategy ioStrategy) {
+    public static int getSelectorPoolSize(IoStrategy ioStrategy) {
         return ioStrategy == WORKER_THREAD
                 ? Math.max(MIN_SELECTORS, CPUS / 4) : Math.max(MIN_WORKERS, CPUS);
     }

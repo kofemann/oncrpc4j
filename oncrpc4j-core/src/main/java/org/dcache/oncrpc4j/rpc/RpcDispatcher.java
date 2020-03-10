@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -27,15 +27,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import com.google.common.base.Throwables;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.glassfish.grizzly.filterchain.BaseFilter;
-import org.glassfish.grizzly.filterchain.FilterChainContext;
-import org.glassfish.grizzly.filterchain.NextAction;
 
 import static java.util.Objects.requireNonNull;
 
-public class RpcDispatcher extends BaseFilter {
+public class RpcDispatcher extends ChannelInboundHandlerAdapter {
 
     private final static Logger _log = LoggerFactory.getLogger(RpcDispatcher.class);
     /**
@@ -75,9 +74,9 @@ public class RpcDispatcher extends BaseFilter {
     }
 
     @Override
-    public NextAction handleRead(final FilterChainContext ctx) throws IOException {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws IOException {
 
-        final RpcCall call = ctx.getMessage();
+        final RpcCall call = (RpcCall)msg;
         final int prog = call.getProgram();
         final int vers = call.getProgramVersion();
         final int proc = call.getProcedure();
@@ -135,6 +134,5 @@ public class RpcDispatcher extends BaseFilter {
                 }
             });
         }
-        return ctx.getInvokeAction();
     }
 }

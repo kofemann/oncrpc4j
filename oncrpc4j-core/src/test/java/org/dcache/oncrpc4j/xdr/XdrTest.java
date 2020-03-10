@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009 - 2018 Deutsches Elektronen-Synchroton,
+ * Copyright (c) 2009 - 2020 Deutsches Elektronen-Synchroton,
  * Member of the Helmholtz Association, (DESY), HAMBURG, GERMANY
  *
  * This library is free software; you can redistribute it and/or modify
@@ -20,13 +20,11 @@
 package org.dcache.oncrpc4j.xdr;
 
 import java.nio.ByteBuffer;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.dcache.oncrpc4j.util.Bytes;
-import java.nio.ByteOrder;
 import java.util.Arrays;
-import org.dcache.oncrpc4j.grizzly.GrizzlyMemoryManager;
-import org.glassfish.grizzly.Buffer;
-import org.glassfish.grizzly.memory.BuffersBuffer;
-import org.glassfish.grizzly.memory.CompositeBuffer;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -35,20 +33,18 @@ import static org.junit.Assert.*;
 
 public class XdrTest {
 
-    private Buffer _buffer;
-
+    private ByteBuf _buffer;
 
     @Before
     public void setUp() {
         _buffer = allocateBuffer(1024);
-        _buffer.order(ByteOrder.BIG_ENDIAN);
     }
 
     @Test
     public void testDecodeInt() throws BadXdrOncRpcException {
 
         int value = 17;
-        _buffer.putInt(value);
+        _buffer.writeInt(value);
 
         Xdr xdr = new Xdr(_buffer);
         xdr.beginDecoding();
@@ -91,7 +87,7 @@ public class XdrTest {
     @Test
     public void testDecodeBooleanTrue() throws BadXdrOncRpcException {
 
-        _buffer.putInt(1);
+        _buffer.writeInt(1);
 
         Xdr xdr = new Xdr(_buffer);
         xdr.beginDecoding();
@@ -133,7 +129,7 @@ public class XdrTest {
     @Test
     public void testDecodeBooleanFale() throws BadXdrOncRpcException {
 
-        _buffer.putInt(0);
+        _buffer.writeInt(0);
 
         Xdr xdr = new Xdr(_buffer);
         xdr.beginDecoding();
@@ -261,9 +257,7 @@ public class XdrTest {
 
     @Test
     public void testAutoGrowWthCompositeBuffer() {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append( allocateBuffer(10));
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeLong(1);
         xdr.xdrEncodeLong(1);
@@ -271,9 +265,7 @@ public class XdrTest {
 
     @Test(expected = BadXdrOncRpcException.class)
     public void testBadXdrWithInt() throws BadXdrOncRpcException {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append(allocateBuffer(10));
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeInt(1);
         xdr.endEncoding();
@@ -283,10 +275,8 @@ public class XdrTest {
 
     @Test(expected = BadXdrOncRpcException.class)
     public void testBadXdrWithOpaque() throws BadXdrOncRpcException {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append(allocateBuffer(10));
         byte[] b = new byte[10];
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeOpaque(b, b.length);
         xdr.endEncoding();
@@ -296,13 +286,11 @@ public class XdrTest {
 
     @Test(expected = BadXdrOncRpcException.class)
     public void testBadXdrOnCorrption() throws BadXdrOncRpcException {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append(allocateBuffer(10));
         int[] b = new int[10];
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeIntVector(b);
-        xdr.asBuffer().limit( xdr.asBuffer().position() -4);
+        xdr.asBuffer().capacity( xdr.asBuffer().writerIndex() -4);
         xdr.endEncoding();
         xdr.beginDecoding();
         xdr.xdrDecodeIntVector();
@@ -310,10 +298,8 @@ public class XdrTest {
 
     @Test(expected = BadXdrOncRpcException.class)
     public void testBadXdrOnNegativeArraySize() throws BadXdrOncRpcException {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append(allocateBuffer(10));
         int[] b = new int[10];
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeInt(-2);  // len
         xdr.xdrEncodeInt(1);   // first int
@@ -325,9 +311,7 @@ public class XdrTest {
 
     @Test
     public void testAvailalbleData() throws BadXdrOncRpcException {
-        CompositeBuffer buffer = BuffersBuffer.create();
-        buffer.append(allocateBuffer(10));
-        Xdr xdr = new Xdr(buffer);
+        Xdr xdr = new Xdr(allocateBuffer(10));
         xdr.beginEncoding();
         xdr.xdrEncodeInt(1);   // first int
         xdr.xdrEncodeInt(2);   // second int
@@ -641,14 +625,14 @@ public class XdrTest {
     @Test
     public void testRelaseBufferOnClose() {
 
-        Buffer b = mock(Buffer.class);
+        ByteBuf b = mock(ByteBuf.class);
         Xdr xdr = new Xdr(b);
         xdr.close();
 
-        verify(b, times(1)).tryDispose();
+        verify(b, times(1)).release();
     }
 
-    private static Buffer allocateBuffer(int size) {
-        return GrizzlyMemoryManager.allocate(size);
+    private static ByteBuf allocateBuffer(int size) {
+        return Unpooled.buffer(size);
     }
 }
